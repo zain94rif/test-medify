@@ -14,6 +14,16 @@ class MasterItem extends Model
 
     protected $appends = ['foto_url'];
 
+    public function categories()
+    {
+        return $this->belongsToMany(
+            ItemCategory::class,
+            'item_category_master_item',
+            'master_item_id',
+            'item_category_id'
+        );
+    }
+
     public function getFotoUrlAttribute()
     {
         return $this->foto ? Storage::disk('public')->url($this->foto) : null;

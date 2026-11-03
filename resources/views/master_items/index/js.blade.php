@@ -60,6 +60,9 @@
                         escapeHtml(item.kode),
                         escapeHtml(item.nama),
                         escapeHtml(item.jenis),
+                        item.categories.map(function(category) {
+                            return escapeHtml(category.nama);
+                        }).join(', ') || '-',
                         item.harga_beli,
                         harga_jual,
                         escapeHtml(item.supplier),

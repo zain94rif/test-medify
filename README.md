@@ -64,3 +64,15 @@ If you discover a security vulnerability within Laravel, please send an e-mail t
 ## License
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+
+## Demo data
+
+Populate the database with sample item categories and Master Items by running:
+
+```bash
+php artisan migrate --seed
+```
+
+To seed an existing database again, run `php artisan db:seed`. The seeders use
+reserved `DEMO-` item codes and category codes, and can be rerun without
+duplicating records or overwriting edits to existing sample records.

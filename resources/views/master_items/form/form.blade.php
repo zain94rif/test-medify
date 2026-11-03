@@ -60,6 +60,27 @@
         </select>
     </div>
 
+    <fieldset class="form-group">
+        <legend class="col-form-label pt-0">Kategori</legend>
+        @forelse ($categories as $category)
+        <div class="form-check">
+            <input
+                class="form-check-input"
+                type="checkbox"
+                id="category-{{ $category->id }}"
+                name="category_ids[]"
+                value="{{ $category->id }}"
+                @if (in_array((string) $category->id, $selectedCategoryIds, true)) checked @endif>
+            <label class="form-check-label" for="category-{{ $category->id }}">
+                {{ $category->nama }} ({{ $category->kode }})
+            </label>
+        </div>
+        @empty
+        <p class="text-muted mb-0">Belum ada kategori. Tambahkan kategori melalui menu Kategori Items.</p>
+        @endforelse
+        <small class="form-text text-muted">Pilih satu atau beberapa kategori. Hapus semua centang untuk menghapus kategori dari item.</small>
+    </fieldset>
+
     <div class="form-group">
         <label for="foto">Foto</label>
         <input type="file" class="form-control-file" id="foto" name="foto" accept="image/jpeg,image/png,image/webp">

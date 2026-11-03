@@ -3,6 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\MasterItem;
+use App\Models\ItemCategory;
+use App\Support\MasterItemsExcelExporter;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -36,7 +39,8 @@ class MasterItemsController extends Controller
             ]);
         }
 
-        $data_search = MasterItem::query();
+        $data_search = MasterItem::query()
+            ->with('categories:id,nama,kode');
 
         if (isset($validated['kode']) && $validated['kode'] !== '') {
             $data_search->where('kode', $validated['kode']);
@@ -52,7 +56,7 @@ class MasterItemsController extends Controller
         }
 
         $data_search = $data_search
-            ->select('kode', 'nama', 'jenis', 'harga_beli', 'laba', 'supplier', 'foto')
+            ->select('id', 'kode', 'nama', 'jenis', 'harga_beli', 'laba', 'supplier', 'foto')
             ->orderBy('id')
             ->get();
 
@@ -65,21 +69,50 @@ class MasterItemsController extends Controller
     public function formView($method, $id = 0)
     {
         if ($method == 'new') {
-            $item = [];
+            $item = new MasterItem();
         } elseif ($method == 'edit') {
-            $item = MasterItem::findOrFail($id);
+            $item = MasterItem::with('categories')->findOrFail($id);
         } else {
             abort(404);
         }
 
+        $selectedCategoryIds = session()->getOldInput(
+            'category_ids',
+            $item->exists ? $item->categories->pluck('id')->all() : []
+        );
+
         $data['item'] = $item;
         $data['method'] = $method;
+        $data['categories'] = ItemCategory::query()
+            ->orderBy('nama')
+            ->get(['id', 'nama', 'kode']);
+        $data['selectedCategoryIds'] = array_map('strval', (array) $selectedCategoryIds);
+
         return view('master_items.form.index', $data);
+    }
+
+    public function exportExcel(MasterItemsExcelExporter $exporter)
+    {
+        $items = MasterItem::query()
+            ->with(['categories' => function ($query) {
+                $query->select('item_categories.id', 'nama')->orderBy('nama');
+            }])
+            ->orderBy('id')
+            ->get(['id', 'kode', 'nama', 'harga_beli', 'laba', 'supplier']);
+        $path = $exporter->create($items);
+
+        return response()
+            ->download($path, 'master-items-' . now()->format('Y-m-d') . '.xlsx', [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            ])
+            ->deleteFileAfterSend(true);
     }
 
     public function singleView($kode)
     {
-        $data['data'] = MasterItem::where('kode', $kode)->firstOrFail();
+        $data['data'] = MasterItem::with('categories')
+            ->where('kode', $kode)
+            ->firstOrFail();
         return view('master_items.single.index', $data);
     }
 
@@ -96,6 +129,8 @@ class MasterItemsController extends Controller
             'supplier' => ['required', 'string', 'in:Tokopaedi,Bukulapuk,TokoBagas,E Commurz,Blublu'],
             'jenis' => ['required', 'string', 'in:Obat,Alkes,Matkes,Umum,ATK'],
             'foto' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'category_ids' => ['nullable', 'array'],
+            'category_ids.*' => ['integer', 'distinct', 'exists:item_categories,id'],
         ]);
 
         if ($method == 'new') {
@@ -131,7 +166,10 @@ class MasterItemsController extends Controller
             }
 
             $data_item->kode = $kode;
-            $data_item->save();
+            DB::transaction(function () use ($data_item, $validated) {
+                $data_item->save();
+                $data_item->categories()->sync($validated['category_ids'] ?? []);
+            });
         } catch (Throwable $exception) {
             if ($newFoto !== null && !Storage::disk('public')->delete($newFoto)) {
                 Log::warning('Gagal membersihkan foto Master Item setelah penyimpanan gagal.', [
