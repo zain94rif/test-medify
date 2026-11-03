@@ -12,6 +12,13 @@
 
                 <div class="card-body">
                     <table>
+                        @if ($data->foto_url)
+                        <tr>
+                            <th>Foto</th>
+                            <td>:</td>
+                            <td><img src="{{ $data->foto_url }}" alt="Foto {{ $data->nama }}" class="img-thumbnail" style="max-width: 320px; max-height: 320px;"></td>
+                        </tr>
+                        @endif
                         <tr>
                             <th>Nama</th>
                             <td>:</td>

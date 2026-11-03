@@ -16,16 +16,17 @@
         <div class="col-2">
             <div class="form-group" id="filter-container">
                 <label>Harga Min</label>
-                <input type="number" class="form-control" id="filter-harga-min">
+                <input type="number" class="form-control" id="filter-harga-min" min="0" max="2147483647" step="1">
             </div>
         </div>
         <div class="col-2">
             <div class="form-group" id="filter-container">
                 <label>Harga Max</label>
-                <input type="number" class="form-control" id="filter-harga-max">
+                <input type="number" class="form-control" id="filter-harga-max" min="0" max="2147483647" step="1">
             </div>
         </div>
     </div>
     <button class="btn btn-primary mt-1 btn-get-data">Filter</button>
     <span id="loading-filter" style="display: none;">Loading...</span>
+    <div id="filter-errors" class="alert alert-danger mt-2" role="alert" style="display: none;"></div>
 </div>

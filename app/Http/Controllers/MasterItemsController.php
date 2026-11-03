@@ -4,6 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\MasterItem;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
+use RuntimeException;
+use Throwable;
 
 class MasterItemsController extends Controller
 {
@@ -14,21 +20,43 @@ class MasterItemsController extends Controller
 
     public function search(Request $request)
     {
-        $kode = $request->kode;
-        $nama = $request->nama;
-        $hargamin = $request->hargamin;
-        $hargamax = $request->hargamax;
+        $validated = Validator::make($request->all(), [
+            'kode' => ['nullable', 'string', 'max:255'],
+            'nama' => ['nullable', 'string', 'max:255'],
+            'hargamin' => ['nullable', 'integer', 'min:0', 'max:2147483647'],
+            'hargamax' => ['nullable', 'integer', 'min:0', 'max:2147483647'],
+        ])->validate();
+
+        if (
+            isset($validated['hargamin'], $validated['hargamax'])
+            && (int) $validated['hargamin'] > (int) $validated['hargamax']
+        ) {
+            throw ValidationException::withMessages([
+                'hargamax' => 'Harga maksimum harus sama dengan atau lebih besar dari harga minimum.',
+            ]);
+        }
 
         $data_search = MasterItem::query();
 
-        if (!empty($kode)) $data_search = $data_search->where('kode', $kode);
-        if (!empty($nama)) $data_search = $data_search->where('nama', 'LIKE', '%' . $nama . '%');
-        if (!empty($hargamin)) $data_search = $data_search->where('harga_beli', '>=', $hargamin)->where('harga_beli', '<=', $hargamax);
+        if (isset($validated['kode']) && $validated['kode'] !== '') {
+            $data_search->where('kode', $validated['kode']);
+        }
+        if (isset($validated['nama']) && $validated['nama'] !== '') {
+            $data_search->where('nama', 'LIKE', '%' . $validated['nama'] . '%');
+        }
+        if (isset($validated['hargamin'])) {
+            $data_search->where('harga_beli', '>=', $validated['hargamin']);
+        }
+        if (isset($validated['hargamax'])) {
+            $data_search->where('harga_beli', '<=', $validated['hargamax']);
+        }
 
-        $data_search = $data_search->select('kode', 'nama', 'jenis', 'harga_beli', 'laba', 'supplier')->orderBy('id')->get();
+        $data_search = $data_search
+            ->select('kode', 'nama', 'jenis', 'harga_beli', 'laba', 'supplier', 'foto')
+            ->orderBy('id')
+            ->get();
 
-
-        return json_encode([
+        return response()->json([
             'status' => 200,
             'data' => $data_search
         ]);
@@ -38,9 +66,12 @@ class MasterItemsController extends Controller
     {
         if ($method == 'new') {
             $item = [];
+        } elseif ($method == 'edit') {
+            $item = MasterItem::findOrFail($id);
         } else {
-            $item = MasterItem::find($id);
+            abort(404);
         }
+
         $data['item'] = $item;
         $data['method'] = $method;
         return view('master_items.form.index', $data);
@@ -48,37 +79,82 @@ class MasterItemsController extends Controller
 
     public function singleView($kode)
     {
-        $data['data'] = MasterItem::where('kode', $kode)->first();
+        $data['data'] = MasterItem::where('kode', $kode)->firstOrFail();
         return view('master_items.single.index', $data);
     }
 
     public function formSubmit(Request $request, $method, $id = 0)
     {
+        if (!in_array($method, ['new', 'edit'], true)) {
+            abort(404);
+        }
+
+        $validated = $request->validate([
+            'nama' => ['required', 'string', 'max:255'],
+            'harga_beli' => ['required', 'integer', 'min:0', 'max:2147483647'],
+            'laba' => ['required', 'integer', 'min:0', 'max:100'],
+            'supplier' => ['required', 'string', 'in:Tokopaedi,Bukulapuk,TokoBagas,E Commurz,Blublu'],
+            'jenis' => ['required', 'string', 'in:Obat,Alkes,Matkes,Umum,ATK'],
+            'foto' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+        ]);
+
         if ($method == 'new') {
-            $data_item = new MasterItem;
+            $data_item = new MasterItem();
             $kode = MasterItem::count('id');
             $kode = $kode + 1;
             $kode = str_pad($kode, 5, '0', STR_PAD_LEFT);
             sleep(3);
         } else {
-            $data_item = MasterItem::find($id);
+            $data_item = MasterItem::findOrFail($id);
             $kode = $data_item->kode;
         }
 
-        $data_item->nama = $request->nama;
-        $data_item->harga_beli = $request->harga_beli;
-        $data_item->laba = $request->laba;
-        $data_item->kode = $kode;
-        $data_item->supplier = $request->supplier;
-        $data_item->jenis = $request->jenis;
-        $data_item->save();
+        $previousFoto = $data_item->foto;
+        $newFoto = null;
+
+        try {
+            if ($request->hasFile('foto')) {
+                $storedFoto = $request->file('foto')->store('master-items', 'public');
+                if ($storedFoto === false) {
+                    throw new RuntimeException('Foto Master Item gagal disimpan.');
+                }
+                $newFoto = $storedFoto;
+            }
+
+            $data_item->nama = $validated['nama'];
+            $data_item->harga_beli = $validated['harga_beli'];
+            $data_item->laba = $validated['laba'];
+            $data_item->supplier = $validated['supplier'];
+            $data_item->jenis = $validated['jenis'];
+            if ($newFoto !== null) {
+                $data_item->foto = $newFoto;
+            }
+
+            $data_item->kode = $kode;
+            $data_item->save();
+        } catch (Throwable $exception) {
+            if ($newFoto !== null && !Storage::disk('public')->delete($newFoto)) {
+                Log::warning('Gagal membersihkan foto Master Item setelah penyimpanan gagal.', [
+                    'path' => $newFoto,
+                ]);
+            }
+
+            throw $exception;
+        }
+
+        if ($newFoto !== null && $previousFoto !== null && !Storage::disk('public')->delete($previousFoto)) {
+            Log::warning('Gagal menghapus foto Master Item lama setelah penggantian.', [
+                'path' => $previousFoto,
+                'master_item_id' => $data_item->id,
+            ]);
+        }
 
         return redirect('master-items');
     }
 
     public function delete($id)
     {
-        MasterItem::find($id)->delete();
+        MasterItem::findOrFail($id)->delete();
         return redirect('master-items');
     }
 
