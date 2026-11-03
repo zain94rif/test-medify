@@ -44,6 +44,14 @@ return [
             'throw' => false,
         ],
 
+        'photos' => [
+            'driver' => 'local',
+            'root' => public_path('photo'),
+            'url' => env('APP_URL').'/photo',
+            'visibility' => 'public',
+            'throw' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),

@@ -26,6 +26,15 @@ class MasterItem extends Model
 
     public function getFotoUrlAttribute()
     {
-        return $this->foto ? Storage::disk('public')->url($this->foto) : null;
+        return $this->foto
+            ? Storage::disk($this->fotoDiskName($this->foto))->url($this->foto)
+            : null;
+    }
+
+    public function fotoDiskName(?string $path = null): string
+    {
+        return $path !== null && Storage::disk('photos')->exists($path)
+            ? 'photos'
+            : 'public';
     }
 }

@@ -149,7 +149,7 @@ class MasterItemsController extends Controller
 
         try {
             if ($request->hasFile('foto')) {
-                $storedFoto = $request->file('foto')->store('master-items', 'public');
+                $storedFoto = $request->file('foto')->store('master-items', 'photos');
                 if ($storedFoto === false) {
                     throw new RuntimeException('Foto Master Item gagal disimpan.');
                 }
@@ -171,7 +171,7 @@ class MasterItemsController extends Controller
                 $data_item->categories()->sync($validated['category_ids'] ?? []);
             });
         } catch (Throwable $exception) {
-            if ($newFoto !== null && !Storage::disk('public')->delete($newFoto)) {
+            if ($newFoto !== null && !Storage::disk('photos')->delete($newFoto)) {
                 Log::warning('Gagal membersihkan foto Master Item setelah penyimpanan gagal.', [
                     'path' => $newFoto,
                 ]);
@@ -180,11 +180,14 @@ class MasterItemsController extends Controller
             throw $exception;
         }
 
-        if ($newFoto !== null && $previousFoto !== null && !Storage::disk('public')->delete($previousFoto)) {
-            Log::warning('Gagal menghapus foto Master Item lama setelah penggantian.', [
-                'path' => $previousFoto,
-                'master_item_id' => $data_item->id,
-            ]);
+        if ($newFoto !== null && $previousFoto !== null) {
+            $previousFotoDisk = Storage::disk($data_item->fotoDiskName($previousFoto));
+            if (!$previousFotoDisk->delete($previousFoto)) {
+                Log::warning('Gagal menghapus foto Master Item lama setelah penggantian.', [
+                    'path' => $previousFoto,
+                    'master_item_id' => $data_item->id,
+                ]);
+            }
         }
 
         return redirect('master-items');

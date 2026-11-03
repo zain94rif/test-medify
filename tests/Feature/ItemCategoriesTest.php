@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\ItemCategory;
 use App\Models\MasterItem;
+use App\Models\User;
 use App\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -17,6 +18,7 @@ class ItemCategoriesTest extends TestCase
         parent::setUp();
 
         $this->withoutMiddleware(VerifyCsrfToken::class);
+        $this->actingAs(User::factory()->create());
     }
 
     public function test_category_can_be_created_edited_and_deleted(): void
@@ -231,6 +233,24 @@ class ItemCategoriesTest extends TestCase
             ->assertOk()
             ->assertSee('href="' . route('master-items.index') . '"', false)
             ->assertSee('href="' . route('item-categories.index') . '"', false);
+    }
+
+    public function test_authenticated_navigation_shows_logout_without_login_or_register(): void
+    {
+        $this->actingAs(User::factory()->create())
+            ->get('/item-categories')
+            ->assertOk()
+            ->assertSee('Logout')
+            ->assertDontSee('Login')
+            ->assertDontSee('Register');
+    }
+
+    public function test_master_item_list_uses_category_codes(): void
+    {
+        $this->get('/master-items')
+            ->assertOk()
+            ->assertSee('category.kode', false)
+            ->assertDontSee('category.nama', false);
     }
 
     private function createCategory(string $kode, string $nama): ItemCategory

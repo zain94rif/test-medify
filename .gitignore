@@ -25,6 +25,6 @@ yarn-error.log
 /.vscode
 
 # Local Podman development files
-Containerfile.podman
-compose.podman.yaml
-.containerignore
+# Containerfile.podman
+# compose.podman.yaml
+# .containerignore

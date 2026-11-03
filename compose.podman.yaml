@@ -1,0 +1,62 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Containerfile.podman
+    ports:
+      - "8080:80"
+    volumes:
+      - .:/var/www/html:z
+      - app_vendor:/var/www/html/vendor
+      - app_storage:/var/www/html/storage
+      - app_bootstrap_cache:/var/www/html/bootstrap/cache
+      - app_photos:/var/www/html/public/photo
+    env_file:
+      - .env.podman
+    environment:
+      DB_CONNECTION: mysql
+      DB_HOST: db
+      DB_PORT: 3306
+    depends_on:
+      db:
+        condition: service_healthy
+      vite:
+        condition: service_started
+    restart: unless-stopped
+
+  vite:
+    image: docker.io/library/node:20-alpine
+    working_dir: /var/www/html
+    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0 --port 5173"
+    ports:
+      - "127.0.0.1:5173:5173"
+    volumes:
+      - .:/var/www/html:z
+      - vite_node_modules:/var/www/html/node_modules
+    restart: unless-stopped
+
+  db:
+    image: docker.io/library/mysql:8.0
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE:-laravel}
+      MYSQL_USER: ${DB_USERNAME:-laravel}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-laravel}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$${MYSQL_ROOT_PASSWORD}\" --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - mysql_data:/var/lib/mysql
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+  app_vendor:
+  app_storage:
+  app_bootstrap_cache:
+  app_photos:
+  vite_node_modules:

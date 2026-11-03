@@ -76,3 +76,27 @@ php artisan migrate --seed
 To seed an existing database again, run `php artisan db:seed`. The seeders use
 reserved `DEMO-` item codes and category codes, and can be rerun without
 duplicating records or overwriting edits to existing sample records.
+
+## Podman
+
+Copy `.env.podman.example` to `.env.podman`, then build the app image and
+generate an `APP_KEY` before starting MySQL:
+
+```bash
+podman-compose --env-file .env.podman -f compose.podman.yaml build app
+podman-compose --env-file .env.podman -f compose.podman.yaml run --rm --no-deps app php artisan key:generate --show
+```
+
+Copy the generated key into `.env.podman` and change the database passwords
+there before the first startup. Pass `.env.podman` to every Compose command so
+database interpolation matches the app environment. Start the services and
+seed the database with:
+
+```bash
+podman-compose --env-file .env.podman -f compose.podman.yaml up --build -d
+podman-compose --env-file .env.podman -f compose.podman.yaml exec app php artisan migrate --seed
+```
+
+The app is available at `http://localhost:8080`, MySQL at port `3307`, and
+uploaded item photos are persisted in the `app_photos` volume mounted at
+`public/photo`.

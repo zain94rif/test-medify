@@ -1,0 +1,50 @@
+FROM docker.io/library/composer:2 AS composer
+
+FROM node:20-alpine AS assets
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci
+
+COPY vite.config.js ./
+COPY resources ./resources
+RUN mkdir -p public && npm run build
+
+FROM php:8.3-apache
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        libfreetype6-dev \
+        libjpeg62-turbo-dev \
+        libonig-dev \
+        libpng-dev \
+        libzip-dev \
+        unzip \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install -j"$(nproc)" bcmath gd mbstring pdo_mysql zip \
+    && a2enmod rewrite \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=composer /usr/bin/composer /usr/local/bin/composer
+
+ENV APACHE_DOCUMENT_ROOT=/var/www/html/public
+WORKDIR /var/www/html
+
+RUN sed -ri "s!/var/www/html!${APACHE_DOCUMENT_ROOT}!g" /etc/apache2/sites-available/*.conf \
+    && printf '<Directory /var/www/html/public>\n    AllowOverride All\n    Require all granted\n</Directory>\n' \
+        > /etc/apache2/conf-available/laravel.conf \
+    && a2enconf laravel
+
+COPY . .
+COPY --from=assets /app/public/build ./public/build
+
+# Laravel 9 advisories block Composer resolution; this local-dev image keeps the app's declared version.
+RUN composer config --global policy.advisories.block false \
+    && composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader \
+    && mkdir -p public/photo \
+    && chown -R www-data:www-data storage bootstrap/cache public/photo
+
+EXPOSE 80
+
+CMD ["sh", "-c", "mkdir -p public/photo storage/framework/cache storage/framework/sessions storage/framework/views storage/logs bootstrap/cache && chown -R www-data:www-data public/photo storage bootstrap/cache && exec apache2-foreground"]

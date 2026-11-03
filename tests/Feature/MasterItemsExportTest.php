@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\ItemCategory;
 use App\Models\MasterItem;
+use App\Models\User;
 use App\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -18,6 +19,7 @@ class MasterItemsExportTest extends TestCase
         parent::setUp();
 
         $this->withoutMiddleware(VerifyCsrfToken::class);
+        $this->actingAs(User::factory()->create());
     }
 
     public function test_master_items_download_is_a_valid_xlsx_with_requested_columns_and_values(): void

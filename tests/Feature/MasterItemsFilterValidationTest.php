@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\MasterItem;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use App\Http\Middleware\VerifyCsrfToken;
 use Tests\TestCase;
@@ -16,6 +17,7 @@ class MasterItemsFilterValidationTest extends TestCase
         parent::setUp();
 
         $this->withoutMiddleware(VerifyCsrfToken::class);
+        $this->actingAs(User::factory()->create());
     }
 
     public function test_price_filter_accepts_minimum_only_maximum_only_and_inclusive_bounds(): void
